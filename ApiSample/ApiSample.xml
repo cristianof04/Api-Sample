@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>ApiSample</name>
+    </assembly>
+    <members>
+        <member name="M:ApiSample.Controllers.ApiSampleController.Overview(System.Boolean)">
+            <summary>
+            Overview
+            </summary>
+            <param name="sucess"></param>
+            <returns>Return Sucess or Fail</returns>
+        </member>
+    </members>
+</doc>
