@@ -1,0 +1,76 @@
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    #tags:
+      #- 'v*'
+      
+name: Build + Release
+
+jobs:
+  build:
+    name: Build
+    runs-on: windows-latest
+    if: github.event_name == 'create' || github.event_name == 'release' || github.event_name == 'push' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - uses: actions/checkout@v1
+      name: Checkout Code
+
+    - name: Run MSBuild
+      uses: microsoft/setup-msbuild@v2
+     
+    - name: Restore NuGet Packages
+      run: nuget restore ApiSample.sln
+ 
+    - name: Build And Publish
+      run: msbuild ApiSample.sln /p:Configuration=Release /p:DeployOnBuild=true /p:PublishProfile=FolderProfile
+
+    - name: Upload Build
+      uses: actions/upload-artifact@v3
+      if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+      with:
+        name: uploaded_release
+        path: ${{github.workspace}}\ApiSample\bin\app.publish\bin\
+
+  release-project:
+    permissions: write-all
+    name: Release project
+    runs-on: windows-latest
+    needs: build
+    if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Set up Release
+        id: variables
+        run: | 
+          echo "date=$(date +'%Y%m%d%H%M%S')" >> $env:GITHUB_OUTPUT
+          echo "${{github.event.release.target_commitish}} ${{github.event_name}}"
+
+      - name: Download artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: uploaded_release
+        
+      - name: Archive Build Content
+        uses: thedoctor0/zip-release@master
+        with:
+          filename: ${{github.ref_name}}_${{steps.variables.outputs.date}}.zip
+        
+      - name: Create Release
+        id: create-release
+        uses: actions/create-release@v1
+        env:
+            GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+            tag_name: ${{github.ref}}
+            release_name: Release ${{github.ref}}
+            draft: false
+            prerelease: false
+            
+      - name: Upload Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: ${{steps.create-release.outputs.upload_url}}
+          asset_path: ./${{github.event.release.target_commitish}}-${{github.ref_name}}_${{steps.variables.outputs.date}}.zip
+          asset_name: ${{github.event.release.target_commitish}}-${{github.ref_name}}_${{steps.variables.outputs.date}}.zip
+          asset_content_type: application/zip
